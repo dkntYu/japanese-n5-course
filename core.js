@@ -24,7 +24,12 @@ function gradeMock(questions,answers,audio,mode,submittedSections=[]){
  return {...r,complete,knowledgeCorrect:kc,knowledgeTotal:knowledge.length,knowledgeEstimate,listeningEstimate,totalEstimate,
   passed:mode!=='review'&&complete&&knowledgeEstimate>=38&&listeningEstimate>=19&&totalEstimate>=80,label:'模考估分，非官方尺度分數'};
 }
-function mockReady(ex){return /^final-[AB]$/.test(ex?.id)&&ex.available===true&&ex.status==='reviewed'&&ex.audioStatus==='ready'&&Array.isArray(ex.questions)&&ex.questions.length===67&&ex.sections?.map(s=>s.id).join(',')==='vocabulary,grammar-reading,listening'&&ex.questions.filter(q=>q.skill==='listening').length===24&&ex.questions.filter(q=>q.skill==='listening').every(q=>q.audio?.delivery==='file'&&typeof q.audio.src==='string'&&q.audio.src.length>0);}
+function mockReady(ex){
+ const listening=Array.isArray(ex?.questions)?ex.questions.filter(q=>q.skill==='listening'):[];
+ const browserTts=ex?.audioStatus==='browser-tts'&&listening.every(q=>q.audio?.delivery==='tts'&&typeof q.audio.scriptJa==='string'&&q.audio.scriptJa.length>0);
+ const fixedFiles=ex?.audioStatus==='ready'&&listening.every(q=>q.audio?.delivery==='file'&&typeof q.audio.src==='string'&&q.audio.src.length>0);
+ return /^final-[AB]$/.test(ex?.id)&&ex.available===true&&ex.status==='reviewed'&&Array.isArray(ex.questions)&&ex.questions.length===67&&ex.sections?.map(s=>s.id).join(',')==='vocabulary,grammar-reading,listening'&&listening.length===24&&(browserTts||fixedFiles);
+}
 function validateState(value,registry,lessonIds,knowledgeIds){
  const fail=()=>{throw Error('備份格式或資料版本不相容。');};
  if(!value||value.schemaVersion!==1)fail();
