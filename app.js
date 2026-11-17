@@ -155,20 +155,28 @@ function reviewGrammar(text){
  const pairs=terms.map(j=>[j,extra.get(j)||readings.get(j)]).filter(([,r])=>r).sort((a,b)=>b[0].length-a[0].length);
  let out='',i=0;while(i<text.length){const pair=pairs.find(([j])=>text.startsWith(j,i));if(pair){out+=`<span lang="ja">${rubyWord(pair[0],pair[1])||e(pair[0])}</span>`;i+=pair[0].length;}else out+=e(text[i++]);}return out;
 }
+function reviewCard(id,r,entry){
+ const q=entry.q,w=words[id],g=grammar[id];
+ if(!q)return `<article class="review-row"><p>這項資料暫無足夠選項，請回課內複習。</p></article>`;
+ const answered=entry.selected!==null,correct=entry.selected===q.answerIndex;
+ return `<article class="review-row review-choice" data-review-id="${e(id)}"><div class="review-question"><p class="audio-note">${w?'單字':'文法例句'}・預定日期 ${e(r.due)}</p><strong>${w?reviewWord(w):`<span lang="ja" class="ja">${ja(q.ja,q.reading)}</span>`}</strong><div class="actions">${audioButton(q.reading,'▷ 發音')}<button class="text-btn" data-action="stop-audio">停止</button></div><p>請選出中文意思：</p><div class="review-options" role="group" aria-label="${w?'單字':'文法例句'}的中文意思">${q.options.map((text,i)=>`<button class="review-option ${answered&&i===q.answerIndex?'is-correct':answered&&i===entry.selected?'is-wrong':''}" data-action="review-answer" data-id="${e(id)}" data-choice="${i}" ${answered?'disabled':''}>${i+1}. ${e(text)}${answered&&i===q.answerIndex?' ✓ 正解':''}${answered&&i===entry.selected&&!correct?' ✕ 你的答案':''}</button>`).join('')}</div>${answered?`<div class="review-feedback" role="status" tabindex="-1"><p><b>${correct?'答對了，已自動完成本次到期複習！':'這題答錯，今天仍需複習。'}</b>正解：${e(q.correct)}</p><p>${e(q.reading)}</p>${g?`<p>${reviewGrammar(g.title)}<br>${e(g.meaning)}<br>${reviewGrammar(g.connection)}</p>`:''}${correct?'':`<button class="btn small" data-action="review-again" data-id="${e(id)}">再試一次</button>`}</div>`:''}</div></article>`;
+
+}
 let reviewRound=null;
 function reviewPage(){
  const due=state.reviewSchedule.filter(r=>!r.done&&r.due<=C.today()),byId=new Map();due.forEach(r=>{if(!byId.has(r.knowledgeId))byId.set(r.knowledgeId,r);});
  if(!reviewRound||reviewRound.day!==C.today())reviewRound={day:C.today(),order:[],questions:new Map()};
  const fresh=[...byId.keys()].filter(id=>!reviewRound.questions.has(id));
- for(const id of C.shuffle(fresh)){reviewRound.order.push(id);reviewRound.questions.set(id,{q:C.reviewQuestion(id,D.lexicon,Object.values(grammar)),selected:null});}
- return heading('間隔複習','隨機四選一，聽讀一起練。',`依實際初學日期排定1／3／7／14天；今天是${C.today()}（臺灣時間）。`)+`<section class="panel"><p>題目與選項隨機排列。選出中文意思後查看正解；答對再按「完成本次複習」。答錯不會完成，未來日期也不會被勾選。</p><div class="actions"><button class="btn secondary small" data-action="review-shuffle">重新隨機出題</button><span class="voice-status audio-note"></span></div>${byId.size?reviewRound.order.filter(id=>byId.has(id)).map(id=>{
- const r=byId.get(id),entry=reviewRound.questions.get(id),q=entry.q,w=words[id],g=grammar[id];
- if(!q)return `<article class="review-row"><p>這項資料暫無足夠選項，請回課內複習。</p></article>`;
- const answered=entry.selected!==null,correct=entry.selected===q.answerIndex;
- return `<article class="review-row review-choice" data-review-id="${e(id)}"><div class="review-question"><p class="audio-note">${w?'單字':'文法例句'}・預定日期 ${e(r.due)}</p><strong>${w?reviewWord(w):`<span lang="ja" class="ja">${ja(q.ja,q.reading)}</span>`}</strong><div class="actions">${audioButton(q.reading,'▷ 發音')}<button class="text-btn" data-action="stop-audio">停止</button></div><p>請選出中文意思：</p><div class="review-options" role="group" aria-label="${w?'單字':'文法例句'}的中文意思">${q.options.map((text,i)=>`<button class="review-option ${answered&&i===q.answerIndex?'is-correct':answered&&i===entry.selected?'is-wrong':''}" data-action="review-answer" data-id="${e(id)}" data-choice="${i}" ${answered?'disabled':''}>${i+1}. ${e(text)}${answered&&i===q.answerIndex?' ✓ 正解':''}${answered&&i===entry.selected&&!correct?' ✕ 你的答案':''}</button>`).join('')}</div>${answered?`<div class="review-feedback" role="status"><p><b>${correct?'答對了！':'這題答錯，今天仍需複習。'}</b>正解：${e(q.correct)}</p><p>${e(q.reading)}</p>${g?`<p>${reviewGrammar(g.title)}<br>${e(g.meaning)}<br>${reviewGrammar(g.connection)}</p>`:''}<button class="btn small" data-action="${correct?'review-done':'review-again'}" data-id="${e(id)}">${correct?'完成本次複習':'再試一次'}</button></div>`:''}</div></article>`;
+ for(const id of C.shuffle(fresh)){reviewRound.order.push(id);reviewRound.questions.set(id,{q:C.reviewQuestion(id,D.lexicon,Object.values(grammar)),selected:null,schedule:byId.get(id)});}
+ return heading('間隔複習','隨機四選一，聽讀一起練。',`依實際初學日期排定1／3／7／14天；今天是${C.today()}（臺灣時間）。`)+`<section class="panel"><p>題目與選項隨機排列。選答案後立即記錄；答對自動完成並保留正解，直接往下繼續。答錯不會完成，未來日期也不會被勾選。</p><div class="actions"><button class="btn secondary small" data-action="review-shuffle">重新隨機出題</button><span class="voice-status audio-note"></span></div>${byId.size?reviewRound.order.filter(id=>byId.has(id)||reviewRound.questions.get(id).selected!==null).map(id=>{
+ return reviewCard(id,byId.get(id)||reviewRound.questions.get(id).schedule,reviewRound.questions.get(id));
  }).join(''):'<div class="empty"><h2>今天沒有到期項目。</h2><p>在課內按「開始學習」後，自動排入回顧。</p><a class="btn" href="#module/M1">回課程</a></div>'}</section>`;
 }
-function renderReviewAt(id){const y=window.scrollY;route();window.scrollTo(0,y);if(id){const row=[...main.querySelectorAll('[data-review-id]')].find(n=>n.dataset.reviewId===id);(row?.querySelector('.review-feedback button')||row?.querySelector('.review-option'))?.focus({preventScroll:true});}}
+function renderReviewAt(id){
+ const entry=reviewRound?.questions.get(id),row=[...main.querySelectorAll('[data-review-id]')].find(n=>n.dataset.reviewId===id);if(!entry||!row)return;
+ const template=document.createElement('template');template.innerHTML=reviewCard(id,entry.schedule,entry);const next=template.content.firstElementChild;row.replaceWith(next);voicesReady();
+ (next.querySelector('.review-feedback')||next.querySelector('.review-option'))?.focus({preventScroll:true});
+}
 function wrongPage(){return heading('我的錯題','把錯誤，變成下一次的提示。','錯題重練會重新播放聽力；未成功播放的題目不算訂正完成。')+`<section class="panel"><p>目前 ${state.wrongQuestionIds.length} 題。未作答或音訊未完成另記在測驗結果，不假裝成已完成的錯題。</p>${state.wrongQuestionIds.length?`<button class="btn" data-action="start" data-key="wrong" data-mode="practice">開始錯題重練</button><ul>${state.wrongQuestionIds.map(id=>`<li>${e(registry[id].prompt)}</li>`).join('')}</ul>`:'<p>目前沒有已作答的錯題。</p>'}</section>`;}
 function mapPage(){return heading('30 課學習地圖','六個單元，一條路線。','目前已開放全部30堂教材；期末模考草稿仍待音訊與完整流程驗收。')+D.course.modules.map(m=>`<section class="panel"><h2>${m.id}・${e(m.title)}</h2><ol>${D.course.lessons.filter(l=>l.moduleId===m.id).map(l=>`<li>${l.available?`<a href="#lesson/${l.id}/overview">${l.id} ${e(l.title)}</a>`:`${l.id} ${e(l.title)}（尚未開放）`}</li>`).join('')}</ol></section>`).join('');}
 function tick(){const s=state.activeSession;if(!s?.deadline)return;const left=s.deadline-Date.now();if(left<=0){submit(true);return;}const el=document.querySelector('#timer');if(el)el.textContent=`剩餘 ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,'0')}`;}
@@ -183,9 +191,8 @@ document.addEventListener('click',ev=>{if(ev.target.closest('.skip')){ev.prevent
  if(a==='begin-lesson'){beginLesson(lessons[b.dataset.lid]);location.hash=`#lesson/${b.dataset.lid}/vocabulary`;}
  if(a==='complete'){const id=b.dataset.lid;if(state.completedLessons.includes(id))state.completedLessons=state.completedLessons.filter(x=>x!==id);else{beginLesson(lessons[id]);state.completedLessons.push(id);}persist();route();}
  if(a==='start')start(b.dataset.key,b.dataset.mode);if(a==='submit')submit();
- if(a==='review-answer'){const entry=reviewRound?.questions.get(b.dataset.id),choice=Number(b.dataset.choice);if(entry?.q&&entry.selected===null&&Number.isInteger(choice)&&choice>=0&&choice<4){entry.selected=choice;renderReviewAt(b.dataset.id);}}
+ if(a==='review-answer'){const entry=reviewRound?.questions.get(b.dataset.id),choice=Number(b.dataset.choice);if(entry?.q&&entry.selected===null&&Number.isInteger(choice)&&choice>=0&&choice<4){entry.selected=choice;if(choice===entry.q.answerIndex){state.reviewSchedule.filter(r=>r.knowledgeId===b.dataset.id&&r.due<=C.today()).forEach(r=>r.done=true);persist();}renderReviewAt(b.dataset.id);}}
  if(a==='review-shuffle'){reviewRound=null;route();}
- if(a==='review-done'&&reviewRound?.questions.get(b.dataset.id)?.q&&reviewRound.questions.get(b.dataset.id).selected===reviewRound.questions.get(b.dataset.id).q.answerIndex){state.reviewSchedule.filter(r=>r.knowledgeId===b.dataset.id&&r.due<=C.today()).forEach(r=>r.done=true);persist();route();}
  if(a==='review-again'){const entry=reviewRound?.questions.get(b.dataset.id);if(entry){entry.q=C.reviewQuestion(b.dataset.id,D.lexicon,Object.values(grammar));entry.selected=null;renderReviewAt(b.dataset.id);}}
 });
 document.addEventListener('change',async ev=>{const t=ev.target;
