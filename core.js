@@ -68,6 +68,27 @@ function validateState(value,registry,lessonIds,knowledgeIds){
  }
  return {...defaults(),...value,furigana:value.furigana!==false,plan:value.plan==='4'?'4':'6'};
 }
-const api={defaults,today,addDays,grade,gradeMock,mockReady,validateState};
+function shuffle(items,rng=Math.random){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function reviewQuestion(id,lexicon,grammar,rng=Math.random){
+ const word=lexicon.find(w=>w.id===id),g=grammar.find(x=>x.id===id);
+ if(!word&&!g)return null;
+ const ex=word||shuffle(g.examples||[],rng).find(x=>x.ja&&x.reading&&x.zh);if(!ex)return null;
+ const normalize=s=>String(s).normalize('NFKC').replace(/[\s\p{P}\p{S}]/gu,'');
+ const correct=word?word.zh:ex.zh,key=normalize(correct);
+ const meaningParts=s=>String(s).split(/[；;、／/，,（）()]/).map(normalize).filter(Boolean);
+ const parts=meaningParts(correct);
+ const pool=word?lexicon.filter(w=>w.id!==id&&w.ja!==word.ja&&w.reading!==word.reading):grammar.filter(x=>x.id!==id).flatMap(x=>x.examples||[]);
+ const seen=new Set([key]),distractors=[];
+ for(const item of shuffle(pool,rng)){
+  const value=item.zh,k=normalize(value);
+  if(!k||seen.has(k)||normalize(item.ja)===normalize(ex.ja))continue;
+  if(meaningParts(value).some(p=>parts.some(q=>p.includes(q)||q.includes(p))))continue;
+  seen.add(k);distractors.push(value);if(distractors.length===3)break;
+ }
+ if(distractors.length!==3)return null;
+ const options=shuffle([correct,...distractors],rng);
+ return {id,kind:word?'word':'grammar',ja:ex.ja,reading:ex.reading,correct,options,answerIndex:options.indexOf(correct)};
+}
+const api={defaults,today,addDays,grade,gradeMock,mockReady,validateState,shuffle,reviewQuestion};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.N5Core=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
